@@ -2,7 +2,8 @@
 //  DailyWeatherRowView.swift
 //  CWKTemplate24
 //
-//  Created by Shanel Silva on 2026-01-02.
+//  Displays a single day's forecast in the "Forecast" tab
+//  Uses OpenWeather icons for consistency and realism
 //
 
 import SwiftUI
@@ -14,8 +15,9 @@ struct DailyWeatherRowView: View {
     var body: some View {
         HStack(spacing: 16) {
 
-            // Day & Date
+            // MARK: - Day & Description
             VStack(alignment: .leading, spacing: 4) {
+
                 Text(
                     DateFormatterUtils.formattedDateWithWeekdayAndDay(
                         from: TimeInterval(day.dt)
@@ -24,52 +26,50 @@ struct DailyWeatherRowView: View {
                 .font(.headline)
                 .foregroundColor(.white)
 
-                Text(day.weather.first?.weatherDescription.rawValue.capitalized ?? "")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.85))
+                Text(
+                    day.weather.first?.description.capitalized ?? ""
+                )
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.85))
             }
 
             Spacer()
 
-            // Weather icon
-            Image(systemName: weatherIconName)
-                .font(.title2)
-                .foregroundColor(.white)
+            // MARK: - OpenWeather Icon
+            if let iconURL = openWeatherIconURL {
+                AsyncImage(url: iconURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } placeholder: {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                }
+                .frame(width: 40, height: 40)
+            }
 
-            // Min / Max temperatures
-            VStack(alignment: .trailing) {
-                Text("H: \(Int(day.temp.max))°")
+            // MARK: - Min / Max Temperatures
+            VStack(alignment: .trailing, spacing: 2) {
+
+                Text("H: \(Int(day.temp.max.rounded()))°")
                     .font(.headline)
                     .foregroundColor(.white)
 
-                Text("L: \(Int(day.temp.min))°")
+                Text("L: \(Int(day.temp.min.rounded()))°")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.85))
             }
         }
         .padding()
-        .background(Color.white.opacity(0.2))
+        .background(Color.white.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Weather Icon Mapping
-    private var weatherIconName: String {
-        switch day.weather.first?.main {
-        case .clear:
-            return "sun.max.fill"
-        case .clouds:
-            return "cloud.fill"
-        case .rain, .drizzle:
-            return "cloud.rain.fill"
-        case .thunderstorm:
-            return "cloud.bolt.fill"
-        case .snow:
-            return "snowflake"
-        case .mist, .fog, .haze:
-            return "cloud.fog.fill"
-        default:
-            return "questionmark"
-        }
+    // MARK: - OpenWeather Icon URL
+
+    private var openWeatherIconURL: URL? {
+        guard let icon = day.weather.first?.icon else { return nil }
+        return URL(string: "https://openweathermap.org/img/wn/\(icon)@2x.png")
     }
 }
 
@@ -82,8 +82,21 @@ struct DailyWeatherRowView: View {
             moonrise: 0,
             moonset: 0,
             moonPhase: 0.5,
-            temp: Temp(day: 20, min: 12, max: 24, night: 14, eve: 18, morn: 13),
-            feelsLike: FeelsLike(day: 20, night: 14, eve: 18, morn: 13),
+            summary: nil,
+            temp: Temp(
+                day: 20,
+                min: 12,
+                max: 24,
+                night: 14,
+                eve: 18,
+                morn: 13
+            ),
+            feelsLike: FeelsLike(
+                day: 20,
+                night: 14,
+                eve: 18,
+                morn: 13
+            ),
             pressure: 1012,
             humidity: 60,
             dewPoint: 10,
@@ -91,11 +104,17 @@ struct DailyWeatherRowView: View {
             windDeg: 120,
             windGust: 7,
             weather: [
-                Weather(id: 800, main: .clear, weatherDescription: .clearSky, icon: "01d")
+                Weather(
+                    id: 800,
+                    main: .clear,
+                    description: "clear sky",
+                    icon: "01d"
+                )
             ],
             clouds: 10,
             pop: 0.1,
             rain: nil,
+            snow: nil,
             uvi: 6
         )
     )

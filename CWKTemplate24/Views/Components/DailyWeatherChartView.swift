@@ -2,7 +2,8 @@
 //  DailyWeatherChartView.swift
 //  CWKTemplate24
 //
-//  Created by Shanel Silva on 2026-01-02.
+//  Displays an 8-day temperature range chart (min → max)
+//  Apple-style, clean, and coursework-ready
 //
 
 import SwiftUI
@@ -10,66 +11,79 @@ import Charts
 
 struct DailyWeatherChartView: View {
 
-    @EnvironmentObject var weatherMapPlaceViewModel: WeatherMapPlaceViewModel
+    @EnvironmentObject private var weatherMapPlaceViewModel: WeatherMapPlaceViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
 
+            // MARK: - Title
             Text("8-Day Temperature Forecast")
                 .font(.headline)
                 .foregroundColor(.white)
-                .padding(.leading)
+                .padding(.horizontal)
 
             if let dailyForecast = weatherMapPlaceViewModel.weatherDataModel?.daily {
 
                 Chart {
-                    ForEach(dailyForecast.prefix(8)) { day in
+                    ForEach(dailyForecast.prefix(8), id: \.dt) { day in
 
-                        // High temperature bar
                         BarMark(
                             x: .value(
                                 "Day",
-                                DateFormatterUtils.formattedDateWithWeekdayAndDay(
-                                    from: TimeInterval(day.dt)
-                                )
+                                shortDay(from: day.dt)
                             ),
-                            y: .value("Max Temp", day.temp.max)
+                            yStart: .value("Min Temp", day.temp.min),
+                            yEnd: .value("Max Temp", day.temp.max)
                         )
-                        .foregroundStyle(.red.opacity(0.8))
-
-                        // Low temperature bar
-                        BarMark(
-                            x: .value(
-                                "Day",
-                                DateFormatterUtils.formattedDateWithWeekdayAndDay(
-                                    from: TimeInterval(day.dt)
-                                )
-                            ),
-                            y: .value("Min Temp", day.temp.min)
+                        .cornerRadius(6)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color.blue.opacity(0.7),
+                                    Color.orange.opacity(0.85)
+                                ],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
                         )
-                        .foregroundStyle(.blue.opacity(0.8))
                     }
                 }
                 .chartYAxis {
-                    AxisMarks(position: .leading)
+                    AxisMarks(position: .leading) {
+                        AxisGridLine()
+                            .foregroundStyle(.white.opacity(0.15))
+                        AxisValueLabel()
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic) { _ in
-                        AxisGridLine()
-                        AxisTick()
+                    AxisMarks {
                         AxisValueLabel()
+                            .foregroundStyle(.white.opacity(0.85))
                     }
                 }
                 .frame(height: 220)
                 .padding(.horizontal)
 
             } else {
-                Text("Weather forecast unavailable.")
+                Text("Weather forecast unavailable")
                     .foregroundColor(.white.opacity(0.8))
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .padding(.vertical)
+        .background(Color.white.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .padding(.horizontal)
+    }
+
+    // MARK: - Helpers
+
+    private func shortDay(from unix: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(unix))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
     }
 }
 

@@ -2,13 +2,6 @@
 //  VisitedPlacesView.swift
 //  CWKTemplate24
 //
-//  Created by girish lukka on 23/10/2024.
-//
-
-//
-//  VisitedPlacesView.swift
-//  CWKTemplate24
-//
 //  Tab 4: Stored Places
 //
 
@@ -22,11 +15,10 @@ struct VisitedPlacesView: View {
     @Query(sort: \LocationModel.name) private var savedLocations: [LocationModel]
 
     // MARK: - Environment
-    @EnvironmentObject var weatherMapPlaceViewModel: WeatherMapPlaceViewModel
+    @EnvironmentObject private var weatherMapPlaceViewModel: WeatherMapPlaceViewModel
+    @Environment(\.openURL) private var openURL
 
     // MARK: - UI State
-    @State private var showLoadAlert = false
-    @State private var selectedLocationName: String?
     @State private var googleSearchURL: URL?
 
     var body: some View {
@@ -34,7 +26,7 @@ struct VisitedPlacesView: View {
 
             // MARK: - Dynamic Background
             WeatherGradientProvider
-                .gradient(for: weatherMapPlaceViewModel.currentWeatherMainString)
+                .gradient(for: currentWeatherMain)
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 12) {
@@ -68,13 +60,6 @@ struct VisitedPlacesView: View {
             .padding(.top)
         }
 
-        // MARK: - Load Alert
-        .alert("Location Loaded", isPresented: $showLoadAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("\(selectedLocationName ?? "Location") loaded from storage.")
-        }
-
         // MARK: - Google Search Dialog
         .confirmationDialog(
             "Search on Google?",
@@ -85,7 +70,7 @@ struct VisitedPlacesView: View {
         ) {
             Button("Open Google Search") {
                 if let url = googleSearchURL {
-                    UIApplication.shared.open(url)
+                    openURL(url)
                 }
             }
             Button("Cancel", role: .cancel) { }
@@ -114,7 +99,7 @@ struct VisitedPlacesView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Row (CARD STYLE + CONTEXT MENU)
+    // MARK: - Row
     private func locationRow(_ location: LocationModel) -> some View {
         Button {
             loadLocation(location)
@@ -157,7 +142,7 @@ struct VisitedPlacesView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button {
-                googleSearchURL = location.googleSearchURL
+                googleSearchURL = googleURL(for: location)
             } label: {
                 Label("Search on Google", systemImage: "magnifyingglass")
             }
@@ -165,26 +150,41 @@ struct VisitedPlacesView: View {
     }
 
     // MARK: - Actions
-    private func loadLocation(_ location: LocationModel) {
-        weatherMapPlaceViewModel.newLocation = location.name
-        weatherMapPlaceViewModel.latitude = location.latitude
-        weatherMapPlaceViewModel.longitude = location.longitude
 
+    private func loadLocation(_ location: LocationModel) {
         Task {
-            try? await weatherMapPlaceViewModel.fetchWeatherData(
-                lat: location.latitude,
-                lon: location.longitude
+            await weatherMapPlaceViewModel.searchLocation(
+                by: location.name,
+                modelContext: modelContext,
+                silent: false
             )
         }
-
-        selectedLocationName = location.name
-        showLoadAlert = true
-        weatherMapPlaceViewModel.switchToNowTab()
     }
 
     private func deleteLocation(at offsets: IndexSet) {
         for index in offsets {
             modelContext.delete(savedLocations[index])
         }
+    }
+
+    // MARK: - Helpers
+
+    private func googleURL(for location: LocationModel) -> URL {
+        let query = location.name.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? location.name
+
+        return URL(string: "https://www.google.com/search?q=\(query)")!
+    }
+
+    // MARK: - View-derived weather state
+    private var currentWeatherMain: String {
+        weatherMapPlaceViewModel
+            .weatherDataModel?
+            .current
+            .weather
+            .first?
+            .main
+            .rawValue ?? "Clear"
     }
 }

@@ -2,15 +2,9 @@
 //  CurrentWeatherView.swift
 //  CWKTemplate24
 //
-//  Created by girish lukka on 23/10/2024.
-//
-
-//
-//  CurrentWeatherView.swift
-//  CWKTemplate24
-//
 //  Tab 1: "Now"
-//  Displays current weather, key metrics, icons, and advisory message
+//  Displays current weather, key metrics, icons, advisory message,
+//  and hourly temperature graph
 //
 
 import SwiftUI
@@ -23,9 +17,9 @@ struct CurrentWeatherView: View {
     var body: some View {
         ZStack {
 
-            // MARK: - Dynamic Gradient Background (REQUIRED)
+            // MARK: - Dynamic Gradient Background
             WeatherGradientProvider.gradient(
-                for: weatherMapPlaceViewModel.currentWeatherMainString
+                for: currentWeatherMain
             )
             .ignoresSafeArea()
 
@@ -34,7 +28,7 @@ struct CurrentWeatherView: View {
 
                     // MARK: - Location & Date
                     VStack(spacing: 6) {
-                        Text(weatherMapPlaceViewModel.currentLocationName)
+                        Text(weatherMapPlaceViewModel.newLocation)
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -47,11 +41,17 @@ struct CurrentWeatherView: View {
                     // MARK: - Main Weather Icon & Temperature
                     VStack(spacing: 10) {
 
-                        Image(systemName: weatherMapPlaceViewModel.weatherIconName)
-                            .resizable()
-                            .scaledToFit()
+                        if let iconURL = weatherMapPlaceViewModel.weatherIconURL {
+                            AsyncImage(url: iconURL) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                            } placeholder: {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                            }
                             .frame(width: 90, height: 90)
-                            .foregroundColor(.white)
+                        }
 
                         Text(weatherMapPlaceViewModel.formattedTemperature)
                             .font(.system(size: 64, weight: .bold))
@@ -61,16 +61,14 @@ struct CurrentWeatherView: View {
                             .font(.title3)
                             .foregroundColor(.white.opacity(0.9))
 
-                        // MARK: - High / Low Temperatures (↑ ↓)
+                        // MARK: - High / Low Temperatures
                         HStack(spacing: 24) {
 
-                            // High
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.up")
                                 Text(highTemperature)
                             }
 
-                            // Low
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.down")
                                 Text(lowTemperature)
@@ -79,6 +77,13 @@ struct CurrentWeatherView: View {
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.9))
                     }
+
+                    // =================================================
+                    // ⏱️ HOURLY TEMPERATURE GRAPH (NEXT 12 HOURS)
+                    // =================================================
+                    HourlyTemperatureChartView()
+                        .padding(.horizontal)
+                        .padding(.top, 4)
 
                     // MARK: - Advisory Message
                     Text(weatherMapPlaceViewModel.weatherAdvisory.message)
@@ -152,6 +157,16 @@ struct CurrentWeatherView: View {
     }
 
     // MARK: - Derived Values (View-safe)
+
+    private var currentWeatherMain: String {
+        weatherMapPlaceViewModel
+            .weatherDataModel?
+            .current
+            .weather
+            .first?
+            .main
+            .rawValue ?? "Clear"
+    }
 
     private var highTemperature: String {
         guard let max = weatherMapPlaceViewModel.weatherDataModel?.daily.first?.temp.max else {

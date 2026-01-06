@@ -1,3 +1,10 @@
+//
+//  NavBarView.swift
+//  CWKTemplate24
+//
+//  Root container view with search + tab navigation
+//
+
 import SwiftUI
 import SwiftData
 import MapKit
@@ -8,9 +15,6 @@ struct NavBarView: View {
     @EnvironmentObject private var weatherMapPlaceViewModel: WeatherMapPlaceViewModel
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var searchCompleter: LocationSearchCompleter
-
-    // MARK: - API Key
-    private let apiKey = "d484edb87e7d9cc561818f19c3e1d833"
 
     // MARK: - UI State
     @State private var searchText: String = ""
@@ -28,15 +32,15 @@ struct NavBarView: View {
     var body: some View {
         ZStack {
 
-            // Background
+            // MARK: - Dynamic Gradient Background
             WeatherGradientProvider
-                .gradient(for: weatherMapPlaceViewModel.currentWeatherMainString)
+                .gradient(for: currentWeatherMain)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
 
                 // =================================================
-                // SEARCH BAR + DROPDOWN (SAME ZSTACK – THIS IS KEY)
+                // SEARCH BAR + AUTOCOMPLETE
                 // =================================================
                 ZStack(alignment: .top) {
 
@@ -68,7 +72,6 @@ struct NavBarView: View {
                                     submitSearch(searchText)
                                 }
 
-                            // BLUE ARROW (kept)
                             Button {
                                 submitSearch(searchText)
                             } label: {
@@ -84,7 +87,9 @@ struct NavBarView: View {
                     .background(Color.black.opacity(0.25))
                     .zIndex(2)
 
-                    // 🔽 AUTOCOMPLETE DROPDOWN (NOW VISIBLE)
+                    // =========================
+                    // AUTOCOMPLETE DROPDOWN
+                    // =========================
                     if isSearchFocused, !searchCompleter.results.isEmpty {
                         VStack(spacing: 0) {
                             ForEach(searchCompleter.results, id: \.self) { result in
@@ -139,6 +144,10 @@ struct NavBarView: View {
                 .allowsHitTesting(!(isSearchFocused && !searchCompleter.results.isEmpty))
             }
         }
+
+        // =========================
+        // ALERT
+        // =========================
         .alert(
             weatherMapPlaceViewModel.alertTitle,
             isPresented: $weatherMapPlaceViewModel.showAlert
@@ -147,12 +156,6 @@ struct NavBarView: View {
         } message: {
             Text(weatherMapPlaceViewModel.alertMessage)
         }
-        .onAppear {
-            weatherMapPlaceViewModel.loadDefaultIfNeeded(
-                modelContext: modelContext,
-                apiKey: apiKey
-            )
-        }
     }
 
     // =========================
@@ -160,14 +163,7 @@ struct NavBarView: View {
     // =========================
     private func submitSearch(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard trimmed.count >= 3 else {
-            weatherMapPlaceViewModel.presentError(
-                "Please enter a full city name.",
-                title: "Invalid Location"
-            )
-            return
-        }
+        guard !trimmed.isEmpty else { return }
 
         isSearchFocused = false
         searchCompleter.results = []
@@ -176,15 +172,15 @@ struct NavBarView: View {
             await weatherMapPlaceViewModel.searchLocation(
                 by: trimmed,
                 modelContext: modelContext,
-                apiKey: apiKey
+                silent: false
             )
-            weatherMapPlaceViewModel.selectedTab = 0
             searchText = ""
         }
     }
 
+
     // =========================
-    // SUGGESTION SELECT
+    // AUTOCOMPLETE SELECTION
     // =========================
     private func selectSuggestion(_ result: MKLocalSearchCompletion) {
         let query = result.subtitle.isEmpty
@@ -198,11 +194,30 @@ struct NavBarView: View {
             await weatherMapPlaceViewModel.searchLocation(
                 by: query,
                 modelContext: modelContext,
-                apiKey: apiKey
+                silent: false
             )
             weatherMapPlaceViewModel.selectedTab = 0
             searchText = ""
         }
+    }
+
+    private func presentInvalidLocationAlert() {
+        weatherMapPlaceViewModel.alertTitle = "Invalid Location"
+        weatherMapPlaceViewModel.alertMessage = "Please enter a valid city or country name."
+        weatherMapPlaceViewModel.showAlert = true
+    }
+
+    // =========================
+    // VIEW-DERIVED WEATHER STATE
+    // =========================
+    private var currentWeatherMain: String {
+        weatherMapPlaceViewModel
+            .weatherDataModel?
+            .current
+            .weather
+            .first?
+            .main
+            .rawValue ?? "Clear"
     }
 }
 
@@ -211,4 +226,3 @@ struct NavBarView: View {
         .environmentObject(WeatherMapPlaceViewModel())
         .environmentObject(LocationSearchCompleter())
 }
-

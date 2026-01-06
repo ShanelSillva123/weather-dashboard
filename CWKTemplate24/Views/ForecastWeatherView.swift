@@ -2,8 +2,7 @@
 //  ForecastWeatherView.swift
 //  CWKTemplate24
 //
-//  Created by girish lukka on 23/10/2024.
-//  Fully aligned with ViewModel & gradient provider
+//  Displays multi-day weather forecast
 //
 
 import SwiftUI
@@ -18,7 +17,7 @@ struct ForecastWeatherView: View {
 
             // MARK: - Dynamic Gradient Background
             WeatherGradientProvider.gradient(
-                for: weatherMapPlaceViewModel.currentWeatherMainString
+                for: currentWeatherMain
             )
             .ignoresSafeArea()
 
@@ -27,12 +26,12 @@ struct ForecastWeatherView: View {
                 // MARK: - Chart Section
                 DailyWeatherChartView()
 
-                // MARK: - List Section
+                // MARK: - Forecast List
                 if let dailyForecast = weatherMapPlaceViewModel.weatherDataModel?.daily {
 
                     ScrollView {
                         VStack(spacing: 12) {
-                            ForEach(dailyForecast.prefix(8)) { day in
+                            ForEach(dailyForecast.prefix(8), id: \.dt) { day in
                                 DailyWeatherRowView(day: day)
                             }
                         }
@@ -49,6 +48,17 @@ struct ForecastWeatherView: View {
             }
             .padding(.top)
         }
+    }
+
+    // MARK: - View-derived Weather State (Safe)
+    private var currentWeatherMain: String {
+        weatherMapPlaceViewModel
+            .weatherDataModel?
+            .current
+            .weather
+            .first?
+            .main
+            .rawValue ?? "Clear"
     }
 }
 

@@ -2,19 +2,8 @@
 //  MapView.swift
 //  CWKTemplate24
 //
-//  Created by girish lukka on 23/10/2024.
-//
-
-//
-//  MapView.swift
-//  CWKTemplate24
-//
 //  Tab 3: "Place Map"
-//  - Top: Interactive map with 5 pins (tourist attractions)
-//  - Bottom: Scrollable list of same places
-//  - Tap list item: center map on that pin
-//  - Tap pin: zoom OUT to show ~500m region around it
-//  - Long press pin: open Google search for the place
+//  Displays tourist POIs on map and in list
 //
 
 import SwiftUI
@@ -28,32 +17,33 @@ struct MapView: View {
     // MARK: - Map State
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278), // London default
+            center: CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278),
             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
         )
     )
 
     @State private var selectedPlaceID: UUID?
-    @State private var showPinActionSheet: Bool = false
+    @State private var showPinActionSheet = false
     @State private var pendingSearchURL: URL?
 
     var body: some View {
         ZStack {
-            // Gradient background (required: LinearGradient; dynamic is fine)
+
+            // MARK: - Dynamic Gradient Background
             WeatherGradientProvider.gradient(
-                for: weatherMapPlaceViewModel.currentWeatherMainString
+                for: currentWeatherMain
             )
             .ignoresSafeArea()
 
             VStack(spacing: 12) {
 
-                // MARK: - Map (Top)
+                // MARK: - Map Section
                 mapSection
                     .frame(height: 330)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .padding(.horizontal)
 
-                // MARK: - POI List (Bottom)
+                // MARK: - Places List
                 listSection
             }
             .padding(.top)
@@ -73,11 +63,9 @@ struct MapView: View {
             Text("This will open your browser.")
         }
         .onAppear {
-            // Keep map aligned with current location on launch
             recenterToCurrentCity()
         }
         .onChange(of: weatherMapPlaceViewModel.latitude) { _, _ in
-            // When location changes, center map on new city
             recenterToCurrentCity()
         }
         .onChange(of: weatherMapPlaceViewModel.longitude) { _, _ in
@@ -89,7 +77,6 @@ struct MapView: View {
 
     private var mapSection: some View {
         Map(position: $cameraPosition) {
-            // City center marker is optional; pins are required
             ForEach(weatherMapPlaceViewModel.annotations) { place in
                 Annotation(place.name, coordinate: place.coordinate) {
                     pinView(for: place)
@@ -99,7 +86,7 @@ struct MapView: View {
         .mapStyle(.standard(elevation: .realistic))
     }
 
-    // MARK: - Pin View (Tap + Long Press)
+    // MARK: - Pin View
 
     private func pinView(for place: PlaceAnnotationDataModel) -> some View {
         VStack(spacing: 2) {
@@ -120,15 +107,13 @@ struct MapView: View {
                 .frame(maxWidth: 140)
         }
         .onTapGesture {
-            // REQUIRED: tap zooms out to 500m region
             selectedPlaceID = place.id
             zoomOutAround(place: place, meters: 500)
         }
         .contextMenu {
             Button {
-                if let url = place.googleSearchURL {
-                    UIApplication.shared.open(url)
-                }
+                pendingSearchURL = place.googleSearchURL
+                showPinActionSheet = true
             } label: {
                 Label("Search on Google", systemImage: "magnifyingglass")
             }
@@ -150,7 +135,6 @@ struct MapView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 12)
 
-                Spacer()
             } else {
                 ScrollView {
                     VStack(spacing: 12) {
@@ -167,7 +151,6 @@ struct MapView: View {
 
     private func placeRow(_ place: PlaceAnnotationDataModel) -> some View {
         Button {
-            // Requirement: tapping list item centers the map on that pin
             selectedPlaceID = place.id
             centerMap(on: place)
         } label: {
@@ -204,13 +187,12 @@ struct MapView: View {
     // MARK: - Map Helpers
 
     private func recenterToCurrentCity() {
-        let center = CLLocationCoordinate2D(
-            latitude: weatherMapPlaceViewModel.latitude,
-            longitude: weatherMapPlaceViewModel.longitude
-        )
         cameraPosition = .region(
             MKCoordinateRegion(
-                center: center,
+                center: CLLocationCoordinate2D(
+                    latitude: weatherMapPlaceViewModel.latitude,
+                    longitude: weatherMapPlaceViewModel.longitude
+                ),
                 span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
             )
         )
@@ -233,5 +215,17 @@ struct MapView: View {
                 longitudinalMeters: meters
             )
         )
+    }
+
+    // MARK: - View-derived Weather State
+
+    private var currentWeatherMain: String {
+        weatherMapPlaceViewModel
+            .weatherDataModel?
+            .current
+            .weather
+            .first?
+            .main
+            .rawValue ?? "Clear"
     }
 }

@@ -2,6 +2,9 @@
 //  WeatherMapPlaceViewModel.swift
 //  CWKTemplate24
 //
+//  Core shared ViewModel for WeatherDashboard
+//  Acts as a single source of truth across all tabs
+//
 
 import Foundation
 import CoreLocation
@@ -9,68 +12,70 @@ import MapKit
 import SwiftData
 import SwiftUI
 
-/// Central ViewModel for the whole app.
-/// Owns the selected location, weather, POIs, and all user-facing alerts.
-/// All tabs observe this as a single source of truth.
 @MainActor
 final class WeatherMapPlaceViewModel: ObservableObject {
 
-    // MARK: - Published State (Observed by all tabs)
+    // MARK: - API CONFIGURATION
 
-    /// Latest weather payload from One Call 3.0 (current + hourly + daily).
-    @Published var weatherDataModel: WeatherDataModel?
-
-    /// Current city name displayed across tabs (default must be London).
-    @Published var newLocation: String = "London"
-
-    /// Selected coordinates for the current city (set via geocoding).
-    @Published var latitude: Double = 51.5074   // London safe default
-    @Published var longitude: Double = -0.1278  // London safe default
-
-    /// Map/list POIs for Place Map tab (top 5 tourist attractions).
-    @Published var annotations: [PlaceAnnotationDataModel] = []
-
-    /// Global loading indicator state (optional to show in UI).
-    @Published var isLoading: Bool = false
-
-    /// Alert binding fields (views should present these via .alert).
-    @Published var showAlert: Bool = false
-    @Published var alertTitle: String = ""
-    @Published var alertMessage: String = ""
-
-    /// Tab selection so Stored Places can jump back to Now tab.
-    /// (If your TabView uses tags 0..3 this works out-of-the-box)
-    @Published var selectedTab: Int = 0
-
-    // MARK: - Control Flags
-    private var hasLoadedOnce: Bool = false
-
-    // MARK: - Constants
+    private let apiKey = "0ec037a2635a0382dc2627d1e7ada6f5"
     private let oneCallBaseURL = "https://api.openweathermap.org/data/3.0/onecall"
     private let units = "metric"
     private let poiLimit = 5
+    private var isInitialStartup = true
 
-    // MARK: - MARKING-SCHEME / UI HELPERS (used by views)
+    // MARK: - SHARED STATE
+
+    @Published var weatherDataModel: WeatherDataModel?
+
+    @Published var newLocation: String = "London"
+    @Published var latitude: Double = 51.5074
+    @Published var longitude: Double = -0.1278
+
+    @Published var selectedCoordinate =
+        CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278)
+
+    @Published var annotations: [PlaceAnnotationDataModel] = []
+    @Published var isLoading = false
+
+    @Published var showAlert = false
+    @Published var alertTitle = ""
+    @Published var alertMessage = ""
+
+    @Published var selectedTab = 0
+
+    private var hasLoadedOnce = false
+
+    // MARK: - VIEW HELPERS (TAB 1)
 
     var currentLocationName: String { newLocation }
 
     var formattedDate: String {
         let df = DateFormatter()
         df.dateStyle = .medium
-        df.timeStyle = .none
         return df.string(from: Date())
+    }
+    
+    var formattedVisibility: String {
+        if let visibility = weatherDataModel?.current.visibility {
+            return "\(visibility / 1000) km"
+        }
+        return "—"
+    }
+
+    /// ✅ FIXED: uses `description`
+    var weatherDescription: String {
+        weatherDataModel?
+            .current
+            .weather
+            .first?
+            .description
+            .capitalized
+        ?? "Loading..."
     }
 
     var formattedTemperature: String {
         guard let t = weatherDataModel?.current.temp else { return "--°C" }
         return "\(Int(t.rounded()))°C"
-    }
-
-    var weatherDescription: String {
-        guard let desc = weatherDataModel?.current.weather.first?.weatherDescription.rawValue else {
-            return "Loading..."
-        }
-        return desc.capitalized
     }
 
     var formattedFeelsLike: String {
@@ -93,514 +98,430 @@ final class WeatherMapPlaceViewModel: ObservableObject {
         return "\(p) hPa"
     }
 
-    /// Main weather enum as String (for gradient provider / UI logic)
-    var currentWeatherMainString: String? {
-        weatherDataModel?.current.weather.first?.main.rawValue
-    }
-    
-    // MARK: - High / Low Temperatures (Today)
-
-    var formattedHighLow: String {
-        guard let today = weatherDataModel?.daily.first else {
-            return "--°C / --°C"
-        }
-        let high = Int(today.temp.max.rounded())
-        let low = Int(today.temp.min.rounded())
-        return "\(high)°C / \(low)°C"
-    }
-
-    // MARK: - Sunrise & Sunset
-
     var formattedSunrise: String {
-        guard let sunrise = weatherDataModel?.current.sunrise else { return "--:--" }
-        return formatTime(from: sunrise)
+        guard let s = weatherDataModel?.current.sunrise else { return "--:--" }
+        return formatTime(from: s)
     }
 
     var formattedSunset: String {
-        guard let sunset = weatherDataModel?.current.sunset else { return "--:--" }
-        return formatTime(from: sunset)
+        guard let s = weatherDataModel?.current.sunset else { return "--:--" }
+        return formatTime(from: s)
     }
 
-    // MARK: - Time Formatter Helper
+    // MARK: - OPENWEATHER ICON
 
-    private func formatTime(from unix: Int) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(unix))
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return formatter.string(from: date)
-    }
-
-
-    /// Icon mapping for the "Now" tab.
-    var weatherIconName: String {
-        guard let main = weatherDataModel?.current.weather.first?.main else { return "cloud" }
-        switch main {
-        case .clear: return "sun.max.fill"
-        case .clouds: return "cloud.fill"
-        case .rain: return "cloud.rain.fill"
-        case .drizzle: return "cloud.drizzle.fill"
-        case .thunderstorm: return "cloud.bolt.rain.fill"
-        case .snow: return "snow"
-        case .mist, .fog, .haze, .smoke, .dust, .sand, .ash:
-            return "cloud.fog.fill"
-        case .tornado: return "tornado"
-        case .squall: return "wind"
+    var weatherIconURL: URL? {
+        guard let icon = weatherDataModel?.current.weather.first?.icon else {
+            return nil
         }
+        return URL(string: "https://openweathermap.org/img/wn/\(icon)@2x.png")
     }
 
-    // MARK: - Advisory (ENUM REQUIRED BY RUBRIC)
+    // MARK: - WEATHER ADVISORY
 
     enum WeatherAdvisory {
         case perfect
-        case caution
-        case stayInside
+        case caution(reason: String)
+        case stayInside(reason: String)
 
         var message: String {
             switch self {
-            case .perfect: return "Perfect weather for a walk!"
-            case .caution: return "Take precautions when heading outside."
-            case .stayInside: return "Better to stay indoors today."
+            case .perfect:
+                return "Perfect weather for outdoor activities."
+            case .caution(let reason):
+                return reason
+            case .stayInside(let reason):
+                return reason
             }
         }
     }
 
+
     var weatherAdvisory: WeatherAdvisory {
-        guard let main = weatherDataModel?.current.weather.first?.main else { return .caution }
-        switch main {
-        case .clear, .clouds:
-            return .perfect
-        case .rain, .drizzle, .mist, .fog, .haze, .smoke, .dust, .sand, .ash, .squall:
-            return .caution
-        case .thunderstorm, .snow, .tornado:
-            return .stayInside
+
+        guard let current = weatherDataModel?.current else {
+            return .caution(reason: "Weather data unavailable. Please try again later.")
         }
+
+        let temp = current.temp
+        let wind = current.windSpeed
+        let uvi = current.uvi
+        let main = current.weather.first?.main ?? .clouds
+
+        if temp >= 35 {
+            return .stayInside(reason: "Extreme heat detected. Stay indoors and hydrated.")
+        }
+
+        if temp <= 2 {
+            return .stayInside(reason: "Very cold conditions. Limit outdoor exposure.")
+        }
+
+        if wind >= 12 {
+            return .caution(reason: "Strong winds expected. Secure loose items outdoors.")
+        }
+
+        if uvi >= 8 {
+            return .caution(reason: "High UV levels. Wear sunscreen if going outside.")
+        }
+
+        if let hourly = weatherDataModel?.hourly.prefix(3),
+           hourly.contains(where: { $0.pop > 0.6 }) {
+            return .caution(reason: "Rain likely soon. Carry an umbrella.")
+        }
+
+        switch main {
+        case .thunderstorm, .tornado:
+            return .stayInside(reason: "Severe weather warning. Stay indoors.")
+        case .snow:
+            return .caution(reason: "Snowy conditions. Travel carefully.")
+        case .mist, .fog, .haze:
+            return .caution(reason: "Low visibility conditions. Take extra care.")
+        default:
+            break
+        }
+
+        if (18...30).contains(temp) && wind < 8 {
+            return .perfect
+        }
+
+        // Default fallback
+        return .caution(reason: "Conditions are manageable but stay alert.")
     }
 
-    // MARK: - Gradient support (NavBarView error mentions currentGradient)
+    
+    var next12HoursTemperature: [HourlyTemperaturePoint] {
+        guard let hourly = weatherDataModel?.hourly else { return [] }
 
-    /// If your NavBarView expects `weatherMapPlaceViewModel.currentGradient` use this.
-    var currentGradient: LinearGradient {
-        WeatherGradientProvider.gradient(for: currentWeatherMainString)
+        return hourly
+            .prefix(12)
+            .map {
+                HourlyTemperaturePoint(
+                    date: Date(timeIntervalSince1970: TimeInterval($0.dt)),
+                    temperature: $0.temp
+                )
+            }
     }
 
-    // MARK: - Public API expected by NavBarView (FIXES YOUR ERRORS)
+    // MARK: - INITIAL LOAD
 
-    /// Older navbars call this name.
-    func loadDefaultLocationIfNeeded(modelContext: ModelContext, apiKey: String) {
-        loadDefaultIfNeeded(modelContext: modelContext, apiKey: apiKey)
-    }
+    @MainActor
+    func loadDefaultLocationIfNeeded(modelContext: ModelContext) {
 
-    /// Newer name you already used.
-    func loadDefaultIfNeeded(modelContext: ModelContext, apiKey: String) {
-        guard !hasLoadedOnce else { return }
-        hasLoadedOnce = true
+        guard weatherDataModel == nil else { return }
+
+        print("🟡 loadDefaultLocationIfNeeded called")
 
         Task {
-            self.searchAndSyncLocation("London", modelContext: modelContext, apiKey: apiKey)
+            // 🔥 Allow network stack to initialise
+            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+
+            print("🟢 Loading default London")
+
+            await applyLocationChange(
+                name: "London",
+                lat: 51.5074,
+                lon: -0.1278,
+                modelContext: modelContext,
+                silent: false
+            )
+            isInitialStartup = false
         }
     }
 
-    /// NavBarView error mentions `searchAndSyncLocation`
-    func searchAndSyncLocation(_ city: String, modelContext: ModelContext, apiKey: String) {
-        Task { await searchLocation(by: city, modelContext: modelContext, apiKey: apiKey) }
-    }
 
-    /// NavBarView error mentions `presentError`
-    func presentError(_ message: String, title: String = "Error") {
-        presentAlert(title: title, message: message)
-    }
 
-    /// Used by Stored Places to jump to Now tab after loading.
-    func switchToNowTab() {
-        selectedTab = 0
-    }
+    // MARK: - SEARCH
 
-    // MARK: - Core Search (required behaviour)
-
-    /// Unified search used by any tab:
-    /// - If location exists in SwiftData: load POIs from storage, fetch weather only.
-    /// - If new: fetch weather + POIs, save both, then update all tabs.
     func searchLocation(
         by cityName: String,
         modelContext: ModelContext,
-        apiKey: String
+        silent: Bool = false
     ) async {
 
-        let trimmed = cityName
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = cityName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // =========================
-        // 1️⃣ HARD INPUT VALIDATION
-        // =========================
-
-        // Only letters and spaces, min length 3
-        let basicPattern = #"^[A-Za-z\s]{3,}$"#
-        guard trimmed.range(of: basicPattern, options: .regularExpression) != nil else {
-            await handleInvalidLocation(modelContext: modelContext, apiKey: apiKey)
+        // ✅ VALIDATION (RESTORED, BUT IN VIEWMODEL)
+        let validPattern = #"^[A-Za-z\s]+$"#
+        guard !trimmed.isEmpty,
+              trimmed.range(of: validPattern, options: .regularExpression) != nil
+        else {
+            await handleInvalidCity(modelContext: modelContext)
             return
         }
-
-        // Reject short tokens like "col"
-        let words = trimmed.split(separator: " ")
-        guard words.allSatisfy({ $0.count >= 3 }) else {
-            await handleInvalidLocation(modelContext: modelContext, apiKey: apiKey)
-            return
-        }
-
-        isLoading = true
-        defer { isLoading = false }
 
         do {
-            // =========================
-            // 2️⃣ GEOCODE
-            // =========================
-            let placemarks = try await CLGeocoder().geocodeAddressString(trimmed)
+            let placemark = try await CLGeocoder().geocodeAddressString(trimmed).first
 
-            guard let placemark = placemarks.first,
-                  let location = placemark.location else {
-                await handleInvalidLocation(modelContext: modelContext, apiKey: apiKey)
+            guard let location = placemark?.location else {
+                await handleInvalidCity(modelContext: modelContext)
                 return
             }
 
-            let resolvedCity = placemark.locality
-            let resolvedCountry = placemark.country
+            let resolvedName =
+                placemark?.locality ??
+                placemark?.administrativeArea ??
+                placemark?.name ??
+                trimmed
 
-            // =========================
-            // 3️⃣ STRICT SEMANTIC MATCH
-            // =========================
-            // Must EXACTLY match city OR country (case-insensitive)
-            let inputLower = trimmed.lowercased()
-
-            let cityMatch = resolvedCity?.lowercased() == inputLower
-            let countryMatch = resolvedCountry?.lowercased() == inputLower
-
-            guard cityMatch || countryMatch else {
-                await handleInvalidLocation(modelContext: modelContext, apiKey: apiKey)
-                return
-            }
-
-            let resolvedName = resolvedCity ?? resolvedCountry!
-            let lat = location.coordinate.latitude
-            let lon = location.coordinate.longitude
-
-            // =========================
-            // 4️⃣ DEDUPE CHECK
-            // =========================
-            let key = LocationModel.makeDedupeKey(
+            await applyLocationChange(
                 name: resolvedName,
-                latitude: lat,
-                longitude: lon
+                lat: location.coordinate.latitude,
+                lon: location.coordinate.longitude,
+                modelContext: modelContext,
+                silent: silent
             )
 
-            if let existing = try fetchStoredLocation(by: key, modelContext: modelContext) {
+        } catch {
+            await handleInvalidCity(modelContext: modelContext)
+        }
+    }
 
-                newLocation = existing.name
-                latitude = existing.latitude
-                longitude = existing.longitude
 
-                annotations = existing.pois
-                    .prefix(poiLimit)
-                    .map { PlaceAnnotationDataModel(from: $0) }
+    // MARK: - CORE LOCATION LOGIC
 
-                try await fetchWeatherData(
-                    lat: latitude,
-                    lon: longitude,
-                    apiKey: apiKey
-                )
+    private func applyLocationChange(
+        name: String,
+        lat: Double,
+        lon: Double,
+        modelContext: ModelContext?,
+        silent: Bool
+    ) async {
 
-                presentAlert(
-                    title: "Location Loaded",
-                    message: "\(existing.name) was loaded from saved locations."
-                )
+        print("🟡 applyLocationChange started for \(name)")
 
+        isLoading = true
+        defer {
+            isLoading = false
+            print("🟢 applyLocationChange finished for \(name)")
+        }
+
+        do {
+            // 1️⃣ Fetch weather FIRST
+            try await fetchWeatherData(lat: lat, lon: lon)
+
+            // 2️⃣ Commit location ONLY after success
+            newLocation = name
+            latitude = lat
+            longitude = lon
+            selectedCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+
+            // If no persistence context, just show weather
+            guard let ctx = modelContext else {
                 selectedTab = 0
                 return
             }
 
-            // =========================
-            // 5️⃣ SAVE NEW VALID LOCATION
-            // =========================
-            newLocation = resolvedName
-            latitude = lat
-            longitude = lon
+            // CASE 1: Already saved
+            if let saved = fetchSavedLocation(lat: lat, lon: lon, modelContext: ctx) {
 
-            try await fetchWeatherData(lat: lat, lon: lon, apiKey: apiKey)
+                annotations = saved.places.map {
+                    PlaceAnnotationDataModel(from: $0)
+                }
 
-            let poiAnnotations = try await fetchTouristPOIs(
-                lat: lat,
-                lon: lon,
-                cityName: resolvedName
-            )
+                if !silent || isInitialStartup {
+                    presentAlert(
+                        title: "Saved Location",
+                        message: "\(name) loaded from stored places."
+                    )
+                }
 
-            annotations = poiAnnotations
+            }
+            // CASE 2: New location
+            else {
 
-            try saveNewLocation(
-                name: resolvedName,
-                latitude: lat,
-                longitude: lon,
-                annotations: poiAnnotations,
-                modelContext: modelContext
-            )
+                let fetchedAnnotations = try await fetchTouristPOIs(lat: lat, lon: lon)
+                annotations = fetchedAnnotations
 
-            presentAlert(
-                title: "Location Saved",
-                message: "\(resolvedName) was saved successfully."
+                let poiModels = fetchedAnnotations.map {
+                    POIModel(
+                        name: $0.name,
+                        latitude: $0.latitude,
+                        longitude: $0.longitude,
+                        subtitle: $0.subtitle
+                    )
+                }
+
+                let location = LocationModel(
+                    name: name,
+                    latitude: lat,
+                    longitude: lon,
+                    places: poiModels
+                )
+
+                ctx.insert(location)
+
+                if !silent || isInitialStartup {
+                    presentAlert(
+                        title: "Location Saved",
+                        message: "\(name) has been saved successfully."
+                    )
+                }
+            }
+
+            selectedTab = 0
+            isInitialStartup = false
+
+        } catch {
+            // 🔁 HARD revert to London on ANY failure
+            newLocation = "London"
+            latitude = 51.5074
+            longitude = -0.1278
+            selectedCoordinate = CLLocationCoordinate2D(
+                latitude: 51.5074,
+                longitude: -0.1278
             )
 
             selectedTab = 0
 
-        } catch {
-            await handleInvalidLocation(modelContext: modelContext, apiKey: apiKey)
+            presentAlert(
+                title: "Invalid Location",
+                message: "Showing London weather instead."
+            )
         }
     }
 
-    
-    private func handleInvalidLocation(
-        modelContext: ModelContext,
-        apiKey: String
-    ) async {
 
-        // Revert to London (CW requirement)
-        newLocation = "London"
-        latitude = 51.5074
-        longitude = -0.1278
+    private func handleInvalidCity(modelContext: ModelContext) async {
 
-        try? await fetchWeatherData(
-            lat: latitude,
-            lon: longitude,
-            apiKey: apiKey
+        isInitialStartup = false
+        selectedTab = 0
+
+        await applyLocationChange(
+            name: "London",
+            lat: 51.5074,
+            lon: -0.1278,
+            modelContext: modelContext,
+            silent: true
         )
-
-        annotations = []
 
         presentAlert(
             title: "Invalid Location",
-            message: "Please enter a valid city or country name."
+            message: "Invalid Location : Showing London weather instead."
         )
-
-        selectedTab = 0
     }
 
 
 
+    // MARK: - API
 
+    private func fetchWeatherData(lat: Double, lon: Double) async throws {
 
+        let urlString =
+        "https://api.openweathermap.org/data/3.0/onecall?lat=\(lat)&lon=\(lon)&units=metric&appid=\(apiKey)"
 
-    // MARK: - Template scaffold functions (keep, but safe)
-
-    func getCoordinatesForCity() async throws {
-        _ = try await geocodeCity(newLocation)
-    }
-
-    func fetchWeatherData(lat: Double, lon: Double) async throws {
-        throw ViewModelError.misuse("Use fetchWeatherData(lat:lon:apiKey:) which requires an API key.")
-    }
-
-    func setAnnotations() async throws {
-        _ = try await fetchTouristPOIs(lat: latitude, lon: longitude, cityName: newLocation)
-    }
-
-    // MARK: - Private: Geocoding
-
-    private func geocodeCity(_ city: String) async throws -> CLLocationCoordinate2D {
-
-        let trimmed = city.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // 🔒 HARD BLOCK SHORT INPUTS (FIXES "col", "uk", "us")
-        guard trimmed.count >= 4 else {
-            throw ViewModelError.invalidLocation
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
         }
 
-        let geocoder = CLGeocoder()
-        let placemarks = try await geocoder.geocodeAddressString(trimmed)
+        print("🌍 Request URL:", url.absoluteString)
 
-        guard
-            let placemark = placemarks.first,
-            let coordinate = placemark.location?.coordinate
-        else {
-            throw ViewModelError.invalidLocation
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        // ✅ LOG RESPONSE
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
         }
 
-        return coordinate
-    }
+        print("📡 Status Code:", httpResponse.statusCode)
+        print("📦 Data Size:", data.count)
 
-
-    // MARK: - Private: Weather Fetch (One Call 3.0)
-
-    private func fetchWeatherData(lat: Double, lon: Double, apiKey: String) async throws {
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ViewModelError.configuration("Missing OpenWeather API key.")
+        // 🚨 THIS IS WHAT WAS MISSING
+        guard !data.isEmpty else {
+            print("❌ Empty response body")
+            throw URLError(.zeroByteResource)
         }
 
-        var components = URLComponents(string: oneCallBaseURL)
-        components?.queryItems = [
-            URLQueryItem(name: "lat", value: String(lat)),
-            URLQueryItem(name: "lon", value: String(lon)),
-            URLQueryItem(name: "units", value: units),
-            URLQueryItem(name: "appid", value: apiKey)
-        ]
-
-        guard let url = components?.url else {
-            throw ViewModelError.configuration("Failed to build One Call API URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 20
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw ViewModelError.network("Invalid server response.")
-        }
-
-        switch http.statusCode {
-        case 200: break
-        case 400: throw ViewModelError.api("Bad request (400).")
-        case 401: throw ViewModelError.api("Unauthorized (401). Check your API key.")
-        case 404: throw ViewModelError.api("Not found (404).")
-        case 429: throw ViewModelError.api("Too many requests (429). Please try again later.")
-        case 500...599: throw ViewModelError.api("Server error (\(http.statusCode)). Please try again later.")
-        default: throw ViewModelError.api("Unexpected API response (\(http.statusCode)).")
+        guard httpResponse.statusCode == 200 else {
+            print("❌ HTTP Error:", httpResponse.statusCode)
+            throw URLError(.badServerResponse)
         }
 
         do {
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(WeatherDataModel.self, from: data)
+            let decoded = try JSONDecoder().decode(
+                WeatherDataModel.self,
+                from: data
+            )
             self.weatherDataModel = decoded
+            print("✅ Weather decoded successfully")
         } catch {
-            throw ViewModelError.decoding("Failed to decode weather data.")
+            print("❌ Decoding error:", error)
+            throw error
         }
     }
 
-    // MARK: - Private: POI Fetch (MapKit)
 
-    private func fetchTouristPOIs(lat: Double, lon: Double, cityName: String) async throws -> [PlaceAnnotationDataModel] {
+    // MARK: - MAPKIT POIs
 
-        let center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-        let region = MKCoordinateRegion(center: center, latitudinalMeters: 8_000, longitudinalMeters: 8_000)
+    private func fetchTouristPOIs(
+        lat: Double,
+        lon: Double
+    ) async throws -> [PlaceAnnotationDataModel] {
+
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            latitudinalMeters: 8_000,
+            longitudinalMeters: 8_000
+        )
 
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = "tourist attractions"
         request.region = region
 
-        let search = MKLocalSearch(request: request)
+        let response = try await MKLocalSearch(request: request).start()
 
-        do {
-            let response = try await search.start()
-            let items = response.mapItems
+        return response.mapItems
+            .prefix(poiLimit)
+            .filter { $0.name != nil }   // ✅ NO nils allowed past this point
+            .map { item in
+                let coordinate = item.placemark.coordinate
 
-            var seen = Set<String>()
-            var results: [PlaceAnnotationDataModel] = []
-
-            for item in items {
-                guard let name = item.name, !name.isEmpty else { continue }
-                let coord = item.placemark.coordinate
-
-                let key = "\(name.lowercased())|\((coord.latitude * 10_000).rounded() / 10_000)|\((coord.longitude * 10_000).rounded() / 10_000)"
-                guard !seen.contains(key) else { continue }
-                seen.insert(key)
-
-                let subtitle = item.placemark.locality ?? item.placemark.title
-
-                results.append(
-                    PlaceAnnotationDataModel(
-                        id: UUID(),
-                        name: name,
-                        latitude: coord.latitude,
-                        longitude: coord.longitude,
-                        subtitle: subtitle
-                    )
+                return PlaceAnnotationDataModel(
+                    id: UUID(),
+                    name: item.name!,
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    subtitle: item.placemark.locality
                 )
-
-                if results.count == poiLimit { break }
             }
-
-            return results
-        } catch {
-            throw ViewModelError.mapSearch("Failed to fetch tourist places. Please try again.")
-        }
     }
 
-    // MARK: - Private: SwiftData Load/Save
 
-    private func fetchStoredLocation(by dedupeKey: String, modelContext: ModelContext) throws -> LocationModel? {
-        let descriptor = FetchDescriptor<LocationModel>(
-            predicate: #Predicate { $0.dedupeKey == dedupeKey }
-        )
-        return try modelContext.fetch(descriptor).first
-    }
 
-    private func saveNewLocation(
-        name: String,
-        latitude: Double,
-        longitude: Double,
-        annotations: [PlaceAnnotationDataModel],
+    // MARK: - SWIFTDATA HELPERS
+
+    private func fetchSavedLocation(
+        lat: Double,
+        lon: Double,
         modelContext: ModelContext
-    ) throws {
-        let location = LocationModel(name: name, latitude: latitude, longitude: longitude)
+    ) -> LocationModel? {
 
-        let poiModels: [POIModel] = annotations.map {
-            POIModel(
-                name: $0.name,
-                latitude: $0.latitude,
-                longitude: $0.longitude,
-                subtitle: $0.subtitle,
-                location: location
-            )
+        let fetch = FetchDescriptor<LocationModel>()
+        guard let saved = try? modelContext.fetch(fetch) else { return nil }
+
+        return saved.first {
+            abs($0.latitude - lat) < 0.0001 &&
+            abs($0.longitude - lon) < 0.0001
         }
-
-        location.pois = poiModels
-
-        modelContext.insert(location)
-        try modelContext.save()
     }
 
-    // MARK: - Alerts & Error Handling
+    // MARK: - UTILITIES
+
+    private func formatTime(from unix: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(unix))
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 
     private func presentAlert(title: String, message: String) {
         alertTitle = title
         alertMessage = message
         showAlert = true
     }
-
-    private func handleViewModelError(_ error: ViewModelError) {
-        switch error {
-        case .invalidLocation:
-            presentAlert(title: "Invalid Location", message: "Location not found. Please enter a valid city name.")
-        case .configuration(let message),
-             .network(let message),
-             .api(let message),
-             .decoding(let message),
-             .mapSearch(let message),
-             .misuse(let message):
-            presentAlert(title: "Error", message: message)
-        }
-    }
 }
 
-// MARK: - ViewModel Error Type
+// MARK: - ERRORS
 
 enum ViewModelError: Error {
-    case invalidLocation
-    case configuration(String)
-    case network(String)
     case api(String)
-    case decoding(String)
-    case mapSearch(String)
-    case misuse(String)
 }
-
-// MARK: - PlaceAnnotationDataModel helpers (POIModel -> map pins)
-
-extension PlaceAnnotationDataModel {
-    init(from poi: POIModel) {
-        self.id = UUID()
-        self.name = poi.name
-        self.latitude = poi.latitude
-        self.longitude = poi.longitude
-        self.subtitle = poi.subtitle
-    }
-}
-

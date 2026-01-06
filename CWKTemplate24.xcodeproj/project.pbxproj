@@ -14,6 +14,8 @@
 		4F9FA2CF2F07B2D500F52ADE /* WeatherMetricView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9FA2CE2F07B2C700F52ADE /* WeatherMetricView.swift */; };
 		4F9FA2D42F07B34400F52ADE /* DailyWeatherChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9FA2D32F07B33B00F52ADE /* DailyWeatherChartView.swift */; };
 		4F9FA2D62F07B35900F52ADE /* DailyWeatherRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9FA2D52F07B35000F52ADE /* DailyWeatherRowView.swift */; };
+		4FCA1CD02F0D035B0071F19F /* HourlyTemperaturePoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCA1CCF2F0D034E0071F19F /* HourlyTemperaturePoint.swift */; };
+		4FCA1CD42F0D045D0071F19F /* HourlyTemperatureChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCA1CD32F0D04530071F19F /* HourlyTemperatureChartView.swift */; };
 		68E84A3E2CC98AC6008312B1 /* CWKTemplate24App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E84A3D2CC98AC6008312B1 /* CWKTemplate24App.swift */; };
 		68E84A422CC98AC8008312B1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68E84A412CC98AC8008312B1 /* Assets.xcassets */; };
 		68E84A452CC98AC8008312B1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68E84A442CC98AC8008312B1 /* Preview Assets.xcassets */; };
@@ -38,6 +40,8 @@
 		4F9FA2CE2F07B2C700F52ADE /* WeatherMetricView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherMetricView.swift; sourceTree = "<group>"; };
 		4F9FA2D32F07B33B00F52ADE /* DailyWeatherChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyWeatherChartView.swift; sourceTree = "<group>"; };
 		4F9FA2D52F07B35000F52ADE /* DailyWeatherRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyWeatherRowView.swift; sourceTree = "<group>"; };
+		4FCA1CCF2F0D034E0071F19F /* HourlyTemperaturePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyTemperaturePoint.swift; sourceTree = "<group>"; };
+		4FCA1CD32F0D04530071F19F /* HourlyTemperatureChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyTemperatureChartView.swift; sourceTree = "<group>"; };
 		68E84A3A2CC98AC6008312B1 /* CWKTemplate24.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CWKTemplate24.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		68E84A3D2CC98AC6008312B1 /* CWKTemplate24App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CWKTemplate24App.swift; sourceTree = "<group>"; };
 		68E84A412CC98AC8008312B1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -69,6 +73,7 @@
 		4F9FA2CD2F07B2BB00F52ADE /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				4FCA1CD32F0D04530071F19F /* HourlyTemperatureChartView.swift */,
 				4F9FA2D52F07B35000F52ADE /* DailyWeatherRowView.swift */,
 				4F9FA2D32F07B33B00F52ADE /* DailyWeatherChartView.swift */,
 				4F9FA2CE2F07B2C700F52ADE /* WeatherMetricView.swift */,
@@ -128,6 +133,7 @@
 		68E84A4C2CC98AE5008312B1 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				4FCA1CCF2F0D034E0071F19F /* HourlyTemperaturePoint.swift */,
 				4F9FA2CB2F07AB2100F52ADE /* POIModel.swift */,
 				68E84A542CC98D69008312B1 /* WeatherDataModel.swift */,
 				68E84A562CC99C05008312B1 /* AirDataModel.swift */,
@@ -234,6 +240,7 @@
 				68E84A632CC9A9EF008312B1 /* MapView.swift in Sources */,
 				68E84A522CC98C3F008312B1 /* WeatherMapPlaceViewModel.swift in Sources */,
 				68E84A552CC98D69008312B1 /* WeatherDataModel.swift in Sources */,
+				4FCA1CD02F0D035B0071F19F /* HourlyTemperaturePoint.swift in Sources */,
 				68E84A5F2CC9A889008312B1 /* CurrentWeatherView.swift in Sources */,
 				4F9046C82F07DB1A0030581E /* LocationPermissionManager.swift in Sources */,
 				4F9FA2CC2F07AB2F00F52ADE /* POIModel.swift in Sources */,
@@ -247,6 +254,7 @@
 				4F9FA2D42F07B34400F52ADE /* DailyWeatherChartView.swift in Sources */,
 				68E84A572CC99C05008312B1 /* AirDataModel.swift in Sources */,
 				68E84A3E2CC98AC6008312B1 /* CWKTemplate24App.swift in Sources */,
+				4FCA1CD42F0D045D0071F19F /* HourlyTemperatureChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
