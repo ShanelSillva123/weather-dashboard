@@ -78,9 +78,6 @@ struct CurrentWeatherView: View {
                         .foregroundColor(.white.opacity(0.9))
                     }
 
-                    // =================================================
-                    // ⏱️ HOURLY TEMPERATURE GRAPH (NEXT 12 HOURS)
-                    // =================================================
                     HourlyTemperatureChartView()
                         .padding(.horizontal)
                         .padding(.top, 4)

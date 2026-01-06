@@ -62,7 +62,6 @@ final class WeatherMapPlaceViewModel: ObservableObject {
         return "—"
     }
 
-    /// ✅ FIXED: uses `description`
     var weatherDescription: String {
         weatherDataModel?
             .current
@@ -270,13 +269,12 @@ final class WeatherMapPlaceViewModel: ObservableObject {
 
         guard weatherDataModel == nil else { return }
 
-        print("🟡 loadDefaultLocationIfNeeded called")
+        print("loadDefaultLocationIfNeeded called")
 
         Task {
-            // 🔥 Allow network stack to initialise
-            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+            try? await Task.sleep(nanoseconds: 800_000_000)
 
-            print("🟢 Loading default London")
+            print("Loading default London")
 
             await applyLocationChange(
                 name: "London",
@@ -301,7 +299,6 @@ final class WeatherMapPlaceViewModel: ObservableObject {
 
         let trimmed = cityName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // ✅ VALIDATION (RESTORED, BUT IN VIEWMODEL)
         let validPattern = #"^[A-Za-z\s]+$"#
         guard !trimmed.isEmpty,
               trimmed.range(of: validPattern, options: .regularExpression) != nil
@@ -348,12 +345,12 @@ final class WeatherMapPlaceViewModel: ObservableObject {
         silent: Bool
     ) async {
 
-        print("🟡 applyLocationChange started for \(name)")
+        print("applyLocationChange started for \(name)")
 
         isLoading = true
         defer {
             isLoading = false
-            print("🟢 applyLocationChange finished for \(name)")
+            print("applyLocationChange finished for \(name)")
         }
 
         do {
@@ -474,26 +471,24 @@ final class WeatherMapPlaceViewModel: ObservableObject {
             throw URLError(.badURL)
         }
 
-        print("🌍 Request URL:", url.absoluteString)
+        print("Request URL:", url.absoluteString)
 
         let (data, response) = try await URLSession.shared.data(from: url)
 
-        // ✅ LOG RESPONSE
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
 
-        print("📡 Status Code:", httpResponse.statusCode)
-        print("📦 Data Size:", data.count)
+        print("Status Code:", httpResponse.statusCode)
+        print("Data Size:", data.count)
 
-        // 🚨 THIS IS WHAT WAS MISSING
         guard !data.isEmpty else {
-            print("❌ Empty response body")
+            print("Empty response body")
             throw URLError(.zeroByteResource)
         }
 
         guard httpResponse.statusCode == 200 else {
-            print("❌ HTTP Error:", httpResponse.statusCode)
+            print("HTTP Error:", httpResponse.statusCode)
             throw URLError(.badServerResponse)
         }
 
@@ -503,9 +498,9 @@ final class WeatherMapPlaceViewModel: ObservableObject {
                 from: data
             )
             self.weatherDataModel = decoded
-            print("✅ Weather decoded successfully")
+            print("Weather decoded successfully")
         } catch {
-            print("❌ Decoding error:", error)
+            print("Decoding error:", error)
             throw error
         }
     }
@@ -532,7 +527,7 @@ final class WeatherMapPlaceViewModel: ObservableObject {
 
         return response.mapItems
             .prefix(poiLimit)
-            .filter { $0.name != nil }   // ✅ NO nils allowed past this point
+            .filter { $0.name != nil }
             .map { item in
                 let coordinate = item.placemark.coordinate
 

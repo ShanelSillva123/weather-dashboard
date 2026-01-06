@@ -5,12 +5,6 @@
 //  Created by Shanel Silva on 2026-01-02.
 //
 
-//
-//  LocationSearchCompleter.swift
-//  CWKTemplate24
-//
-//  Created by Shanel Silva on 2026-01-02.
-//
 
 import Foundation
 import MapKit
@@ -35,12 +29,11 @@ final class LocationSearchCompleter: NSObject, ObservableObject {
             span: MKCoordinateSpan(latitudeDelta: 180, longitudeDelta: 360)
         )
 
-        print("✅ LocationSearchCompleter initialised")
+        print("LocationSearchCompleter initialised")
     }
 
-    // 🔑 SINGLE ENTRY POINT
     func updateQuery(_ text: String) {
-        print("🔍 Query set:", text)
+        print("Query set:", text)
         completer.queryFragment = text
     }
 }
@@ -51,7 +44,7 @@ extension LocationSearchCompleter: MKLocalSearchCompleterDelegate {
         _ completer: MKLocalSearchCompleter,
         didUpdateResults results: [MKLocalSearchCompletion]
     ) {
-        print("✅ Results received:", results.count)
+        print("Results received:", results.count)
 
         self.results = Array(results.prefix(5))
     }
@@ -60,7 +53,7 @@ extension LocationSearchCompleter: MKLocalSearchCompleterDelegate {
         _ completer: MKLocalSearchCompleter,
         didFailWithError error: Error
     ) {
-        print("❌ Completer error:", error.localizedDescription)
+        print("Completer error:", error.localizedDescription)
         self.results = []
     }
 }

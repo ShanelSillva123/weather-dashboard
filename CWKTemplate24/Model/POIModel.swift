@@ -9,7 +9,6 @@ final class POIModel {
     var longitude: Double
     var subtitle: String?
 
-    // ❌ NO inverse here
     var location: LocationModel?
 
     init(

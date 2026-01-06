@@ -11,7 +11,6 @@ final class LocationModel {
     @Attribute(.unique)
     var dedupeKey: String
 
-    // ✅ ONLY SIDE WITH inverse + cascade
     @Relationship(deleteRule: .cascade, inverse: \POIModel.location)
     var places: [POIModel]
 
