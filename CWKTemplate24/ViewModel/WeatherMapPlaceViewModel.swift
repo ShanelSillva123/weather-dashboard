@@ -118,20 +118,31 @@ final class WeatherMapPlaceViewModel: ObservableObject {
     }
 
     // MARK: - WEATHER ADVISORY
+    struct WeatherRisk {
+        let priority: Int
+        let reason: String
+    }
 
     enum WeatherAdvisory {
         case perfect
-        case caution(reason: String)
-        case stayInside(reason: String)
+        case caution(reasons: [String])
+        case stayInside(reasons: [String])
 
         var message: String {
             switch self {
             case .perfect:
                 return "Perfect weather for outdoor activities."
-            case .caution(let reason):
-                return reason
-            case .stayInside(let reason):
-                return reason
+            case .caution(let reasons),
+                 .stayInside(let reasons):
+                return reasons.joined(separator: " ")
+            }
+        }
+
+        var priority: Int {
+            switch self {
+            case .stayInside: return 3
+            case .caution: return 2
+            case .perfect: return 1
             }
         }
     }
@@ -140,7 +151,7 @@ final class WeatherMapPlaceViewModel: ObservableObject {
     var weatherAdvisory: WeatherAdvisory {
 
         guard let current = weatherDataModel?.current else {
-            return .caution(reason: "Weather data unavailable. Please try again later.")
+            return .caution(reasons: ["Weather data unavailable. Please try again later."])
         }
 
         let temp = current.temp
@@ -148,45 +159,95 @@ final class WeatherMapPlaceViewModel: ObservableObject {
         let uvi = current.uvi
         let main = current.weather.first?.main ?? .clouds
 
-        if temp >= 35 {
-            return .stayInside(reason: "Extreme heat detected. Stay indoors and hydrated.")
+        var risks: [WeatherRisk] = []
+
+        // Temperature intelligence
+        if temp >= 38 {
+            risks.append(.init(priority: 3,
+                reason: "Extreme heat detected. Stay indoors and hydrated."
+            ))
+        } else if temp >= 33 {
+            risks.append(.init(priority: 2,
+                reason: "High temperatures expected. Avoid prolonged sun exposure."
+            ))
+        } else if temp <= 0 {
+            risks.append(.init(priority: 3,
+                reason: "Freezing conditions. Outdoor exposure is risky."
+            ))
+        } else if temp <= 5 {
+            risks.append(.init(priority: 2,
+                reason: "Very cold weather. Dress warmly if going outside."
+            ))
         }
 
-        if temp <= 2 {
-            return .stayInside(reason: "Very cold conditions. Limit outdoor exposure.")
+        // Wind intelligence
+        if wind >= 18 {
+            risks.append(.init(priority: 3,
+                reason: "Dangerously strong winds. Remain indoors."
+            ))
+        } else if wind >= 12 {
+            risks.append(.init(priority: 2,
+                reason: "Strong winds expected. Secure loose items outdoors."
+            ))
         }
 
-        if wind >= 12 {
-            return .caution(reason: "Strong winds expected. Secure loose items outdoors.")
+        // UV intelligence
+        if uvi >= 10 {
+            risks.append(.init(priority: 3,
+                reason: "Extreme UV levels. Avoid outdoor activity."
+            ))
+        } else if uvi >= 7 {
+            risks.append(.init(priority: 2,
+                reason: "High UV levels. Use sunscreen and protective clothing."
+            ))
         }
 
-        if uvi >= 8 {
-            return .caution(reason: "High UV levels. Wear sunscreen if going outside.")
-        }
-
+        // Short-term rain prediction (smart use of hourly data)
         if let hourly = weatherDataModel?.hourly.prefix(3),
-           hourly.contains(where: { $0.pop > 0.6 }) {
-            return .caution(reason: "Rain likely soon. Carry an umbrella.")
+           hourly.contains(where: { $0.pop > 0.65 }) {
+            risks.append(.init(priority: 2,
+                reason: "Rain likely soon. Carry an umbrella."
+            ))
         }
 
+        // Severe weather intelligence
         switch main {
         case .thunderstorm, .tornado:
-            return .stayInside(reason: "Severe weather warning. Stay indoors.")
+            risks.append(.init(priority: 3,
+                reason: "Severe weather warning. Stay indoors."
+            ))
         case .snow:
-            return .caution(reason: "Snowy conditions. Travel carefully.")
-        case .mist, .fog, .haze:
-            return .caution(reason: "Low visibility conditions. Take extra care.")
+            risks.append(.init(priority: 2,
+                reason: "Snowy conditions. Travel carefully."
+            ))
+        case .fog, .mist, .haze:
+            risks.append(.init(priority: 2,
+                reason: "Low visibility conditions. Take extra care."
+            ))
         default:
             break
         }
 
-        if (18...30).contains(temp) && wind < 8 {
-            return .perfect
+        // Decision logic
+        guard !risks.isEmpty else {
+            if (18...30).contains(temp) && wind < 8 && uvi < 6 {
+                return .perfect
+            }
+            return .caution(reasons: ["Conditions are generally good. Stay aware of changes."])
         }
 
-        // Default fallback
-        return .caution(reason: "Conditions are manageable but stay alert.")
+        let maxPriority = risks.map(\.priority).max() ?? 2
+        let reasons = risks
+            .filter { $0.priority == maxPriority }
+            .map(\.reason)
+
+        if maxPriority == 3 {
+            return .stayInside(reasons: reasons)
+        } else {
+            return .caution(reasons: reasons)
+        }
     }
+
 
     
     var next12HoursTemperature: [HourlyTemperaturePoint] {
